@@ -21,29 +21,83 @@
         const { useState, useEffect } = React;
 
         function MobileTracker() {
+            const createEmptyCategory = () => ({
+                objectif: '',
+                realisation: '',
+                status: ''
+            });
+
+            const [categories, setCategories] = useState([
+                'famille',
+                'santé',
+                'entrepreneuriat'
+            ]);
             const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+            const [currentData, setCurrentData] = useState({});
             const [dayPlan, setDayPlan] = useState('');
+            const [newCategoryName, setNewCategoryName] = useState('');
+            const [isAddingCategory, setIsAddingCategory] = useState(false);
 
             useEffect(() => {
+                const savedData = localStorage.getItem(`tracker_${selectedDate}`);
+                if (savedData) {
+                    setCurrentData(JSON.parse(savedData));
+                } else {
+                    const newData = categories.reduce((acc, category) => {
+                        acc[category] = createEmptyCategory();
+                        return acc;
+                    }, {});
+                    setCurrentData(newData);
+                }
+
                 const savedPlan = localStorage.getItem(`dayPlan_${selectedDate}`);
                 if (savedPlan) setDayPlan(savedPlan);
             }, [selectedDate]);
 
-            const saveDayPlan = () => {
+            const handleTaskChange = (category, field, value) => {
+                setCurrentData((prev) => ({
+                    ...prev,
+                    [category]: {
+                        ...prev[category],
+                        [field]: value
+                    }
+                }));
+            };
+
+            const saveData = () => {
+                localStorage.setItem(`tracker_${selectedDate}`, JSON.stringify(currentData));
                 localStorage.setItem(`dayPlan_${selectedDate}`, dayPlan);
-                alert('Déroulement de votre journée sauvegardé !');
+                alert('Données sauvegardées !');
             };
 
             const exportToCalendar = () => {
-                const icsContent = `BEGIN:VCALENDAR\nVERSION:2.0\nCALSCALE:GREGORIAN\nBEGIN:VEVENT\nSUMMARY:Déroulement de ma journée\nDESCRIPTION:${dayPlan.replace(/\n/g, '\\n')}\nDTSTART:${selectedDate.replace(/-/g, '')}T080000Z\nDTEND:${selectedDate.replace(/-/g, '')}T200000Z\nEND:VEVENT\nEND:VCALENDAR`;
+                let description = `Déroulement de ma journée:\n${dayPlan}`;
+                categories.forEach((category) => {
+                    const data = currentData[category];
+                    description += `\n\n${category.toUpperCase()}:\nObjectif: ${data?.objectif || ''}\nRéalisation: ${data?.realisation || ''}`;
+                });
+                const icsContent = `BEGIN:VCALENDAR\nVERSION:2.0\nCALSCALE:GREGORIAN\nBEGIN:VEVENT\nSUMMARY:Planning du ${selectedDate}\nDESCRIPTION:${description.replace(/\n/g, '\\n')}\nDTSTART:${selectedDate.replace(/-/g, '')}T080000Z\nDTEND:${selectedDate.replace(/-/g, '')}T200000Z\nEND:VEVENT\nEND:VCALENDAR`;
                 const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8;' });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = url;
-                link.download = `journee_${selectedDate}.ics`;
+                link.download = `planning_${selectedDate}.ics`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
+            };
+
+            const handleAddCategory = () => {
+                if (newCategoryName.trim() && !categories.includes(newCategoryName.trim().toLowerCase())) {
+                    const updatedCategories = [...categories, newCategoryName.trim().toLowerCase()];
+                    setCategories(updatedCategories);
+                    setCurrentData((prev) => ({
+                        ...prev,
+                        [newCategoryName.trim().toLowerCase()]: createEmptyCategory()
+                    }));
+                    setNewCategoryName('');
+                    setIsAddingCategory(false);
+                }
             };
 
             return (
@@ -68,20 +122,70 @@
                                 placeholder="Entrez vos activités ou priorités pour la journée"
                                 className="w-full border rounded px-3 py-2 mt-2"
                             />
-                            <div className="flex gap-4 mt-3">
+                        </div>
+
+                        {categories.map((category) => (
+                            <div key={category} className="border rounded p-4 mt-4">
+                                <h3 className="text-lg font-medium capitalize">{category}</h3>
+                                <label className="block mt-2">
+                                    <span className="text-sm font-medium">Objectif</span>
+                                    <input
+                                        type="text"
+                                        value={currentData[category]?.objectif || ''}
+                                        onChange={(e) => handleTaskChange(category, 'objectif', e.target.value)}
+                                        className="block w-full mt-1 border rounded px-3 py-2"
+                                    />
+                                </label>
+                                <label className="block mt-2">
+                                    <span className="text-sm font-medium">Réalisation</span>
+                                    <input
+                                        type="text"
+                                        value={currentData[category]?.realisation || ''}
+                                        onChange={(e) => handleTaskChange(category, 'realisation', e.target.value)}
+                                        className="block w-full mt-1 border rounded px-3 py-2"
+                                    />
+                                </label>
+                            </div>
+                        ))}
+
+                        {isAddingCategory ? (
+                            <div className="mt-4">
+                                <input
+                                    type="text"
+                                    placeholder="Nouvelle catégorie"
+                                    value={newCategoryName}
+                                    onChange={(e) => setNewCategoryName(e.target.value)}
+                                    className="block w-full mt-1 border rounded px-3 py-2"
+                                />
                                 <button
-                                    onClick={saveDayPlan}
-                                    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                                    onClick={handleAddCategory}
+                                    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mt-2"
                                 >
-                                    Sauvegarder
-                                </button>
-                                <button
-                                    onClick={exportToCalendar}
-                                    className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-                                >
-                                    Exporter vers le Calendrier
+                                    Ajouter
                                 </button>
                             </div>
+                        ) : (
+                            <button
+                                onClick={() => setIsAddingCategory(true)}
+                                className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 mt-4"
+                            >
+                                Ajouter une catégorie
+                            </button>
+                        )}
+
+                        <div className="flex gap-4 mt-4">
+                            <button
+                                onClick={saveData}
+                                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                            >
+                                Sauvegarder
+                            </button>
+                            <button
+                                onClick={exportToCalendar}
+                                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                            >
+                                Exporter vers le Calendrier
+                            </button>
                         </div>
                     </div>
                 </div>
