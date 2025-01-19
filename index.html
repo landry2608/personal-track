@@ -36,13 +36,18 @@
             const [currentData, setCurrentData] = useState({});
             const [dayPlan, setDayPlan] = useState('');
             const [newCategoryName, setNewCategoryName] = useState('');
+            const [editingCategory, setEditingCategory] = useState(null);
+            const [editedCategoryName, setEditedCategoryName] = useState('');
             const [isAddingCategory, setIsAddingCategory] = useState(false);
+            const [notificationTime, setNotificationTime] = useState('21:00');
 
             useEffect(() => {
                 const savedData = localStorage.getItem(`tracker_${selectedDate}`);
-                if (savedData) {
-                    setCurrentData(JSON.parse(savedData));
-                } else {
+                const savedPlan = localStorage.getItem(`dayPlan_${selectedDate}`);
+                const savedTime = localStorage.getItem('notificationTime');
+
+                if (savedData) setCurrentData(JSON.parse(savedData));
+                else {
                     const newData = categories.reduce((acc, category) => {
                         acc[category] = createEmptyCategory();
                         return acc;
@@ -50,8 +55,8 @@
                     setCurrentData(newData);
                 }
 
-                const savedPlan = localStorage.getItem(`dayPlan_${selectedDate}`);
                 if (savedPlan) setDayPlan(savedPlan);
+                if (savedTime) setNotificationTime(savedTime);
             }, [selectedDate]);
 
             const handleTaskChange = (category, field, value) => {
@@ -70,23 +75,6 @@
                 alert('Données sauvegardées !');
             };
 
-            const exportToCalendar = () => {
-                let description = `Déroulement de ma journée:\n${dayPlan}`;
-                categories.forEach((category) => {
-                    const data = currentData[category];
-                    description += `\n\n${category.toUpperCase()}:\nObjectif: ${data?.objectif || ''}\nRéalisation: ${data?.realisation || ''}`;
-                });
-                const icsContent = `BEGIN:VCALENDAR\nVERSION:2.0\nCALSCALE:GREGORIAN\nBEGIN:VEVENT\nSUMMARY:Planning du ${selectedDate}\nDESCRIPTION:${description.replace(/\n/g, '\\n')}\nDTSTART:${selectedDate.replace(/-/g, '')}T080000Z\nDTEND:${selectedDate.replace(/-/g, '')}T200000Z\nEND:VEVENT\nEND:VCALENDAR`;
-                const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `planning_${selectedDate}.ics`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            };
-
             const handleAddCategory = () => {
                 if (newCategoryName.trim() && !categories.includes(newCategoryName.trim().toLowerCase())) {
                     const updatedCategories = [...categories, newCategoryName.trim().toLowerCase()];
@@ -100,93 +88,149 @@
                 }
             };
 
+            const handleEditCategory = (category) => {
+                setEditingCategory(category);
+                setEditedCategoryName(category);
+            };
+
+            const saveEditedCategory = () => {
+                if (editedCategoryName.trim() && editingCategory) {
+                    const updatedCategories = categories.map((cat) =>
+                        cat === editingCategory ? editedCategoryName.trim().toLowerCase() : cat
+                    );
+                    const updatedData = { ...currentData };
+                    updatedData[editedCategoryName.trim().toLowerCase()] = updatedData[editingCategory];
+                    delete updatedData[editingCategory];
+
+                    setCategories(updatedCategories);
+                    setCurrentData(updatedData);
+                    setEditingCategory(null);
+                    setEditedCategoryName('');
+                }
+            };
+
+            const handleDeleteCategory = (category) => {
+                const updatedCategories = categories.filter((cat) => cat !== category);
+                const updatedData = { ...currentData };
+                delete updatedData[category];
+
+                setCategories(updatedCategories);
+                setCurrentData(updatedData);
+            };
+
             return (
                 <div className="p-4 space-y-6">
-                    <div className="space-y-4">
-                        <h1 className="text-2xl font-bold">Planning Personnel</h1>
-                        <label className="block">
-                            <span className="text-sm font-medium">Date</span>
-                            <input
-                                type="date"
-                                value={selectedDate}
-                                onChange={(e) => setSelectedDate(e.target.value)}
-                                className="block w-full mt-1 border rounded px-3 py-2"
-                            />
-                        </label>
+                    <h1 className="text-2xl font-bold">Planning Personnel</h1>
+                    <label className="block">
+                        <span className="text-sm font-medium">Date</span>
+                        <input
+                            type="date"
+                            value={selectedDate}
+                            onChange={(e) => setSelectedDate(e.target.value)}
+                            className="block w-full mt-1 border rounded px-3 py-2"
+                        />
+                    </label>
 
-                        <div>
-                            <h2 className="text-lg font-medium">Déroulement de ma journée</h2>
-                            <textarea
-                                value={dayPlan}
-                                onChange={(e) => setDayPlan(e.target.value)}
-                                placeholder="Entrez vos activités ou priorités pour la journée"
-                                className="w-full border rounded px-3 py-2 mt-2"
-                            />
-                        </div>
+                    <div>
+                        <h2 className="text-lg font-medium">Déroulement de ma journée</h2>
+                        <textarea
+                            value={dayPlan}
+                            onChange={(e) => setDayPlan(e.target.value)}
+                            placeholder="Entrez vos activités ou priorités pour la journée"
+                            className="w-full border rounded px-3 py-2 mt-2"
+                        />
+                    </div>
 
-                        {categories.map((category) => (
-                            <div key={category} className="border rounded p-4 mt-4">
-                                <h3 className="text-lg font-medium capitalize">{category}</h3>
-                                <label className="block mt-2">
-                                    <span className="text-sm font-medium">Objectif</span>
+                    {categories.map((category) => (
+                        <div key={category} className="border rounded p-4 mt-4">
+                            {editingCategory === category ? (
+                                <div className="flex items-center gap-2">
                                     <input
                                         type="text"
-                                        value={currentData[category]?.objectif || ''}
-                                        onChange={(e) => handleTaskChange(category, 'objectif', e.target.value)}
-                                        className="block w-full mt-1 border rounded px-3 py-2"
+                                        value={editedCategoryName}
+                                        onChange={(e) => setEditedCategoryName(e.target.value)}
+                                        className="block w-full border rounded px-3 py-2"
                                     />
-                                </label>
-                                <label className="block mt-2">
-                                    <span className="text-sm font-medium">Réalisation</span>
-                                    <input
-                                        type="text"
-                                        value={currentData[category]?.realisation || ''}
-                                        onChange={(e) => handleTaskChange(category, 'realisation', e.target.value)}
-                                        className="block w-full mt-1 border rounded px-3 py-2"
-                                    />
-                                </label>
-                            </div>
-                        ))}
+                                    <button
+                                        onClick={saveEditedCategory}
+                                        className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                                    >
+                                        Sauvegarder
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-lg font-medium capitalize">{category}</h3>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => handleEditCategory(category)}
+                                            className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600"
+                                        >
+                                            Modifier
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteCategory(category)}
+                                            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                                        >
+                                            Supprimer
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
 
-                        {isAddingCategory ? (
-                            <div className="mt-4">
+                            <label className="block mt-2">
+                                <span className="text-sm font-medium">Objectif</span>
                                 <input
                                     type="text"
-                                    placeholder="Nouvelle catégorie"
-                                    value={newCategoryName}
-                                    onChange={(e) => setNewCategoryName(e.target.value)}
+                                    value={currentData[category]?.objectif || ''}
+                                    onChange={(e) => handleTaskChange(category, 'objectif', e.target.value)}
                                     className="block w-full mt-1 border rounded px-3 py-2"
                                 />
-                                <button
-                                    onClick={handleAddCategory}
-                                    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mt-2"
-                                >
-                                    Ajouter
-                                </button>
-                            </div>
-                        ) : (
-                            <button
-                                onClick={() => setIsAddingCategory(true)}
-                                className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 mt-4"
-                            >
-                                Ajouter une catégorie
-                            </button>
-                        )}
+                            </label>
+                            <label className="block mt-2">
+                                <span className="text-sm font-medium">Réalisation</span>
+                                <input
+                                    type="text"
+                                    value={currentData[category]?.realisation || ''}
+                                    onChange={(e) => handleTaskChange(category, 'realisation', e.target.value)}
+                                    className="block w-full mt-1 border rounded px-3 py-2"
+                                />
+                            </label>
+                        </div>
+                    ))}
 
-                        <div className="flex gap-4 mt-4">
+                    {isAddingCategory ? (
+                        <div className="mt-4">
+                            <input
+                                type="text"
+                                placeholder="Nouvelle catégorie"
+                                value={newCategoryName}
+                                onChange={(e) => setNewCategoryName(e.target.value)}
+                                className="block w-full mt-1 border rounded px-3 py-2"
+                            />
                             <button
-                                onClick={saveData}
-                                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                                onClick={handleAddCategory}
+                                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mt-2"
                             >
-                                Sauvegarder
-                            </button>
-                            <button
-                                onClick={exportToCalendar}
-                                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-                            >
-                                Exporter vers le Calendrier
+                                Ajouter
                             </button>
                         </div>
+                    ) : (
+                        <button
+                            onClick={() => setIsAddingCategory(true)}
+                            className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 mt-4"
+                        >
+                            Ajouter une catégorie
+                        </button>
+                    )}
+
+                    <div className="flex gap-4 mt-4">
+                        <button
+                            onClick={saveData}
+                            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                        >
+                            Sauvegarder
+                        </button>
                     </div>
                 </div>
             );
