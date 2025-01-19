@@ -40,6 +40,7 @@
             const [editedCategoryName, setEditedCategoryName] = useState('');
             const [isAddingCategory, setIsAddingCategory] = useState(false);
             const [notificationTime, setNotificationTime] = useState('21:00');
+            const [activeTab, setActiveTab] = useState('today');
 
             useEffect(() => {
                 const savedData = localStorage.getItem(`tracker_${selectedDate}`);
@@ -118,9 +119,8 @@
                 setCurrentData(updatedData);
             };
 
-            return (
-                <div className="p-4 space-y-6">
-                    <h1 className="text-2xl font-bold">Planning Personnel</h1>
+            const renderTodayView = () => (
+                <div>
                     <label className="block">
                         <span className="text-sm font-medium">Date</span>
                         <input
@@ -164,15 +164,15 @@
                                     <div className="flex gap-2">
                                         <button
                                             onClick={() => handleEditCategory(category)}
-                                            className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600"
+                                            className="text-yellow-500 hover:text-yellow-700"
                                         >
-                                            Modifier
+                                            ✏️
                                         </button>
                                         <button
                                             onClick={() => handleDeleteCategory(category)}
-                                            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                                            className="text-red-500 hover:text-red-700"
                                         >
-                                            Supprimer
+                                            🗑️
                                         </button>
                                     </div>
                                 </div>
@@ -232,6 +232,80 @@
                             Sauvegarder
                         </button>
                     </div>
+                </div>
+            );
+
+            const renderStatsView = () => (
+                <div>
+                    <h2 className="text-lg font-medium">Statistiques</h2>
+                    {categories.map((category) => (
+                        <div key={category} className="mt-4">
+                            <h3 className="capitalize font-medium">{category}</h3>
+                            <p>Objectifs atteints: {currentData[category]?.status === 'Atteint' ? 1 : 0}</p>
+                            <p>Objectifs non atteints: {currentData[category]?.status === 'Non atteint' ? 1 : 0}</p>
+                        </div>
+                    ))}
+                </div>
+            );
+
+            const renderSettingsView = () => (
+                <div>
+                    <h2 className="text-lg font-medium">Réglages</h2>
+                    <label className="block mt-4">
+                        <span className="text-sm font-medium">Heure du rappel quotidien</span>
+                        <input
+                            type="time"
+                            value={notificationTime}
+                            onChange={(e) => setNotificationTime(e.target.value)}
+                            className="block w-full mt-1 border rounded px-3 py-2"
+                        />
+                    </label>
+                    <button
+                        onClick={() => {
+                            localStorage.setItem('notificationTime', notificationTime);
+                            alert('Heure de rappel mise à jour !');
+                        }}
+                        className="mt-4 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                    >
+                        Enregistrer
+                    </button>
+                </div>
+            );
+
+            return (
+                <div>
+                    <header className="p-4 bg-blue-600 text-white text-center">
+                        <h1 className="text-xl font-bold">Planning Personnel</h1>
+                    </header>
+
+                    <main className="p-4">
+                        {activeTab === 'today' && renderTodayView()}
+                        {activeTab === 'stats' && renderStatsView()}
+                        {activeTab === 'settings' && renderSettingsView()}
+                    </main>
+
+                    <footer className="fixed bottom-0 left-0 right-0 bg-gray-100 border-t">
+                        <nav className="flex justify-around">
+                            <button
+                                className={`p-4 w-full ${activeTab === 'today' ? 'bg-blue-500 text-white' : 'text-gray-500'}`}
+                                onClick={() => setActiveTab('today')}
+                            >
+                                Aujourd'hui
+                            </button>
+                            <button
+                                className={`p-4 w-full ${activeTab === 'stats' ? 'bg-blue-500 text-white' : 'text-gray-500'}`}
+                                onClick={() => setActiveTab('stats')}
+                            >
+                                Statistiques
+                            </button>
+                            <button
+                                className={`p-4 w-full ${activeTab === 'settings' ? 'bg-blue-500 text-white' : 'text-gray-500'}`}
+                                onClick={() => setActiveTab('settings')}
+                            >
+                                Réglages
+                            </button>
+                        </nav>
+                    </footer>
                 </div>
             );
         }
